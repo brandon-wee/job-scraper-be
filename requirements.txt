@@ -5,3 +5,7 @@ supabase
 python-dotenv
 bs4
 gunicorn
+langchain
+langchain-core
+langchain-google-genai
+pydantic
