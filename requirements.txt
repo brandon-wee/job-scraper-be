@@ -9,3 +9,5 @@ langchain
 langchain-core
 langchain-google-genai
 pydantic
+mltk
+scikit-learn

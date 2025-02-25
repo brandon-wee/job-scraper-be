@@ -1,10 +1,11 @@
 from flask import Flask, request, jsonify, render_template
 from flask_cors import CORS
-from models import JobDetailsExtractLLM
+from models import JobDetailsExtractLLM, ResumeSkillsSimilarity
 
 app = Flask(__name__)
 CORS(app)
 job_extrator = JobDetailsExtractLLM()
+similarity_checker = ResumeSkillsSimilarity()
 
 @app.route('/')
 def index():
@@ -23,4 +24,18 @@ def save():
     except Exception as e:
         print("Error:", e)
         return jsonify({"success": False, "error": str(e)})
+    
+@app.route('/get_similarity', methods=['POST', 'GET'])
+def get_similarity():
+    try:
+        contents = request.get_json()
+        resume_contents = contents['resume_contents']
+        user_id = contents['user_id']
+
+        result = similarity_checker.get_similarity(resume_contents, user_id)
+        return jsonify({"result": result})
+    
+    except Exception as e:
+        print("Error:", e)
+        return jsonify({"success": False, "error": str(e), "similarity": 0, "resume_skills": ""})
     
