@@ -6,11 +6,11 @@ from nltk.stem import WordNetLemmatizer
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
-# Download NLTK data files (run once)
-nltk.download("stopwords")
-nltk.download("punkt")
-nltk.download("punkt_tab")
-nltk.download("wordnet")
+# # Download NLTK data files (run once)
+# nltk.download("stopwords")
+# nltk.download("punkt")
+# nltk.download("punkt_tab")
+# nltk.download("wordnet")
 
 def preprocess_text(text):
     """Cleans and preprocesses text for TF-IDF similarity computation."""
