@@ -3,7 +3,7 @@ flask
 flask-cors
 supabase
 python-dotenv
-bs4
+beautifulsoup4
 gunicorn
 langchain
 langchain-core
@@ -11,3 +11,4 @@ langchain-google-genai
 pydantic
 nltk
 scikit-learn
+pypdf2
