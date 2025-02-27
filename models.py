@@ -47,7 +47,7 @@ class JobDetailsExtractLLM:
             input_variables=["jobHTML"],
             partial_variables={"format_instructions": self.parser.get_format_instructions()},
         )
-        model = ChatGoogleGenerativeAI(model="models/gemini-2.0-flash-lite-preview-02-05", api_key=os.getenv("GOOGLE_API_KEY"))
+        model = ChatGoogleGenerativeAI(model="models/gemini-2.0-flash-lite", api_key=os.getenv("GOOGLE_API_KEY"))
 
         self.chain = prompt | model 
         
