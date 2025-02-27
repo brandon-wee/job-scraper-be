@@ -18,6 +18,7 @@ import io
 import hmac, hashlib
 from tfidf import compute_tf_idf_similarity
 import PyPDF2
+import pandas as pd
 
 load_dotenv()
 
@@ -34,7 +35,7 @@ class SkillItem(BaseModel):
 class JobDetailsSchema(BaseModel):
     position: str = Field(..., description="The position of the job")
     company: str = Field(..., description="The company name")
-    technical_requirements: List[SkillItem] = Field(..., description="A list of technical skills required for the job")
+    skills_required: List[SkillItem] = Field(..., description="A list of skills (technical, soft or business) required for the job")
     experience: str = Field(..., description="The prior work experience required for the job")
     location: str = Field(..., description="The country where the job listing is located")
     
@@ -50,33 +51,90 @@ class JobDetailsExtractLLM:
         model = ChatGoogleGenerativeAI(model="models/gemini-2.0-flash-lite", api_key=os.getenv("GOOGLE_API_KEY"))
 
         self.chain = prompt | model 
-        
-
-    def save_job_details(self, message: str, user_id: str):
-        with open("job.html", "w", encoding="utf-8") as f:
-            f.write(message["jobDetailsDiv"])
-
-        soup = BeautifulSoup(message["jobDetailsDiv"], 'html.parser')
-        job_contents = soup.get_text(separator="\n")
-
-        response = self.chain.invoke(job_contents)
-        obj = json.loads(re.sub(r"```json|```", "", json.dumps(response.content, indent=4)).strip())
-        obj = self.parser.parse(obj)
-        # obj = response
-
-        obj["location"] = self.get_company_address(obj["company"], obj["location"])
-        obj["hash_user_details"] = self.hash_id(user_id)
-        obj["url"] = message["jobURL"]
-
-        obj["job_id"] = obj["url"].split("currentJobId=")[1].split("&")[0]
-        obj["technical_requirements"] = self.convert_skills_list(obj["technical_requirements"])
-
+    
+    def add_user(self, user_id: str):
+        hashed_id = hash_id(user_id)
         try:
-            supabase.table("job_details").insert(obj).execute()
+            response = supabase.table("USER") \
+                .insert({"user_id": hashed_id, "user_name": ""}) \
+                .execute()
+            return {"success": True, "error": None}
+        except Exception as e:
+            return {"success": False, "error": "User already exists."}
+
+    def save_job_details(self, message, user_id: str):
+        try:
+            soup = BeautifulSoup(message["jobDetailsDiv"], 'html.parser')
+            job_contents = soup.get_text(separator="\n")
+
+            job_url = message["jobURL"]
+            job_id = job_url.split("currentJobId=")[1].split("&")[0]
+            hashed_id = hash_id(user_id)
+
+            # Check if user exists
+            response = supabase.table("USER") \
+                .select("user_id") \
+                .eq("user_id", hashed_id) \
+                .execute()
+            
+            if len(response.data) == 0:
+                return {"success": False, "error": "User does not exist."}
+
+            # Check if this job has already been saved by the user
+            response = supabase.table("USER_JOB") \
+                .select("job_id") \
+                .eq("job_id", job_id) \
+                .eq("user_id", hashed_id) \
+                .execute()
+
+            if len(response.data) > 0:
+                return {"success": False, "error": "Job already saved."}
+            
+            # Check if this job has already been saved by another user
+            response = supabase.table("JOB") \
+                .select("job_id") \
+                .eq("job_id", job_id) \
+                .execute()
+            
+            if len(response.data) == 0:
+
+                response = self.chain.invoke(job_contents)
+                obj = json.loads(re.sub(r"```json|```", "", json.dumps(response.content, indent=4)).strip())
+                obj = self.parser.parse(obj)
+                position = obj["position"]
+                company = obj["company"]
+                skills_required = self.convert_skills_list(obj["skills_required"])
+                experience = obj["experience"]
+                address, lat, long = self.get_company_address(company, obj["location"])
+
+                # Check if company exists in the database
+                response = supabase.table("COMPANY") \
+                    .select("company_id") \
+                    .eq("company_name", company) \
+                    .eq("company_address", address) \
+                    .execute()
+                
+                if len(response.data) == 0:
+                    # Insert new company
+                    response = supabase.table("COMPANY") \
+                        .insert({"company_name": company, "company_address": address, "company_lat": lat, "company_long": long}) \
+                        .execute()
+                    
+                company_id = response.data[0]["company_id"]
+                # Insert job details
+                response = supabase.table("JOB") \
+                    .insert({"job_id": job_id, "job_title": position, "company_id": int(company_id), "job_skills_required": skills_required, "job_experience_level": experience, "job_url": job_url}) \
+                    .execute()
+            
+            # Insert user job
+            response = supabase.table("USER_JOB") \
+                .insert({"job_id": job_id, "user_id": hashed_id, "application_status": "Saved"}) \
+                .execute()
+
             return {"success": True, "error": None}
         
         except Exception as e:
-            print("Error:", e)
+            print(e)
             return {"success": False, "error": str(e)}
 
 
@@ -86,21 +144,27 @@ class JobDetailsExtractLLM:
         params = {
             "input": company + " " + country,
             "inputtype": "textquery",
-            "fields": "formatted_address",
+            "fields": "formatted_address,geometry",
             "key": os.getenv("PLACES_API_KEY")
         }
         response = requests.get(url, params=params)
         if response.status_code == 200 and response.json()["status"] != "ZERO_RESULTS":
             data = response.json()
-            return data["candidates"][0]["formatted_address"]
+            formatted_address = data["candidates"][0]["formatted_address"]
+            latitude = data["candidates"][0]["geometry"]["location"]["lat"]
+            longitude = data["candidates"][0]["geometry"]["location"]["lng"]
+            
+            return formatted_address, float(latitude), float(longitude)
         else:
-            return "Not Found"
-    
-    def hash_id(self, user_id):
-        return hmac.new(os.getenv("HASH_SECRET").encode(), user_id.encode(), hashlib.sha256).hexdigest()
+            return "Not Found", None, None
     
     def convert_skills_list(self, skills):
+        print(skills)
+        if skills == []:
+            return ""
         return '\n'.join(["- " + skill['name'] + ": " + skill["description"] for skill in skills])
+
+# ----------------- Resume Skills Similarity -----------------
 
 def decode_pdf(pdf_data: str) -> bytes:
     """Decodes JSON Base64 string back into PDF bytes."""
@@ -111,7 +175,6 @@ def hash_id(user_id):
     return hmac.new(os.getenv("HASH_SECRET").encode(), user_id.encode(), hashlib.sha256).hexdigest()
 
 
-# ----------------- Resume Skills Similarity -----------------
 class SkillItem(BaseModel):
     name: str = Field(..., description="The name of the skill.")
     description: str = Field(..., description="A brief explanation of the skill, its context, and proficiency level if available.")
@@ -152,13 +215,13 @@ class ResumeSkillsSimilarity:
         job_listings = self.get_job_listings(user_id)
         resume_skills = self.extract_skills_from_pdf(decode_pdf(resume_contents))
         result = []
-        for job in job_listings.data:
-            job_skills = job['technical_requirements']
+        for job in job_listings:
+            job_skills = job['job_skills_required']
             skills = self.extract_compatible_and_missing_skills(resume_skills, job_skills)
             similarity = self.cosine_similarity(resume_skills, job_skills, skills["compatible_skills"], skills["missing_skills"])
             
-            result.append({"position": job['position'], 
-                           "company": job['company'], 
+            result.append({"position": job['job_title'], 
+                           "company": job['company_name'], 
                            "similarity_score": similarity, 
                            "compatible_skills": '\n'.join([f"- {skill}" for skill in skills['compatible_skills']]), 
                            "missing_skills": '\n'.join([f"- {skill}" for skill in skills['missing_skills']])
@@ -205,10 +268,12 @@ class ResumeSkillsSimilarity:
 
     def get_job_listings(self, user_id):
         hashed_id = hash_id(user_id)
-        return supabase.table("job_details") \
-        .select("position, company, technical_requirements") \
-        .eq("hash_user_details", hashed_id) \
-        .execute()
+        response = supabase.table("JOB").select("job_title, COMPANY!inner(company_name), job_skills_required, USER_JOB!inner(user_id)").eq("USER_JOB.user_id", hashed_id).execute()
+        df = pd.DataFrame(response.data)
+        df.drop(columns=["USER_JOB"], inplace=True)
+        df["company_name"] = df["COMPANY"].apply(lambda x: x["company_name"])
+        df.drop(columns=["COMPANY"], inplace=True)
+        return df.to_dict(orient='records')
     
     def extract_compatible_and_missing_skills(self, resume_skills, job_skills):
         response = self.skills_chain.invoke({"resume_skills": resume_skills, "job_skills": job_skills})

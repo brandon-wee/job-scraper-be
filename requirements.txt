@@ -12,3 +12,4 @@ pydantic
 nltk
 scikit-learn
 pypdf2
+pandas
