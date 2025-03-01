@@ -123,7 +123,11 @@ print(f"Indexed {len(docs)} documents.")
 # text_splitter = RecursiveCharacterTextSplitter()
 # all_splits = text_splitter.split_documents(docs)
 
-vector_store.add_documents(documents=docs, ids=uuids)
+batch_size = 100
+for i in range(0, len(docs), batch_size):
+    batch_docs = docs[i:i + batch_size]
+    batch_uuids = uuids[i:i + batch_size]
+    vector_store.add_documents(documents=batch_docs, ids=batch_uuids)
 
 # Define RAG pipeline
 prompt = hub.pull("rlm/rag-prompt")
