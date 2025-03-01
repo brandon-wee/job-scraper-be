@@ -62,10 +62,13 @@ class JobDetailsExtractLLM:
         except Exception as e:
             return {"success": False, "error": "User already exists."}
 
+    def preprocess(self, file: str) -> str:
+        return '\n'.join(line.strip() for line in file.splitlines() if line.strip())
+
     def save_job_details(self, message, user_id: str):
         try:
             soup = BeautifulSoup(message["jobDetailsDiv"], 'html.parser')
-            job_contents = soup.get_text(separator="\n")
+            job_contents = self.preprocess(soup.get_text(separator="\n"))
 
             job_url = message["jobURL"]
             job_id = job_url.split("currentJobId=")[1].split("&")[0]
@@ -123,7 +126,7 @@ class JobDetailsExtractLLM:
                 company_id = response.data[0]["company_id"]
                 # Insert job details
                 response = supabase.table("JOB") \
-                    .insert({"job_id": job_id, "job_title": position, "company_id": int(company_id), "job_skills_required": skills_required, "job_experience_level": experience, "job_url": job_url}) \
+                    .insert({"job_id": job_id, "job_title": position, "company_id": int(company_id), "job_skills_required": skills_required, "job_experience_level": experience, "job_url": job_url, "job_contents": job_contents}) \
                     .execute()
             
             # Insert user job
@@ -281,3 +284,60 @@ class ResumeSkillsSimilarity:
         # print(processed_text)
         result = self.skills_parser.parse(processed_text)
         return result
+
+def change_username(user_id, new_username):
+    hashed_id = hash_id(user_id)
+    response = supabase.table("USER").update({"user_name": new_username}).eq("user_id", hashed_id).execute()
+    return {"success": True, "error": None}
+
+# ----------------- Cover Letter Generator -----------------
+class CoverLetterLLM:
+    def __init__(self):
+        self.model = ChatGoogleGenerativeAI(model="models/gemini-2.0-flash", api_key=os.getenv("GOOGLE_API_KEY"))
+        self.message = [
+            (
+                "system",
+                """You are an AI assistant that will be given a Job Listing and a Resume! 
+                You will be asked to generate a cover letter for the job listing using the resume as a reference. 
+                The cover letter should be personalized and tailored to the job requirements.
+                Make sure any of the user's skills or experiences that match the job listing are highlighted, but make sure it is from the resume and not from the job listing."""
+            )
+        ]
+        self.message_template = """Follow this template to generate the cover letter:
+{template}
+        
+Here is the resume:
+{resume}
+
+Here is the job listing:
+{job_contents}
+
+And here is the company address:
+{company_address}
+"""
+    
+    def generate_cover_letter(self, job_id, resume_bytes):
+        resume_text = self.extract_text_from_pdf(resume_bytes)
+        with open("./templates/template.txt", "r") as file:
+            template = file.read()
+            job_contents, company_address = self.get_job_skills(job_id)
+            cover_letter = self.model.invoke(self.message + [("human", self.message_template.format(template=template, resume=resume_text, job_contents=job_contents, company_address=company_address))]).content
+        
+        print(cover_letter)
+        return cover_letter
+    
+    def extract_text_from_pdf(self, resume_bytes):
+        reader = PyPDF2.PdfReader(decode_pdf(resume_bytes))
+        text = ''
+        for page in reader.pages:
+            text += page.extract_text() + '\n'
+        return text
+    
+    def get_job_skills(self, job_id):
+        response = supabase.table("JOB").select("job_contents", "COMPANY!inner(company_address)").eq("job_id", job_id).execute()       
+        company_address = response.data[0]["COMPANY"]["company_address"]
+        job_skills = response.data[0] if response.data else ""
+        return job_skills, company_address
+
+if __name__ == "__main__":
+    change_username("113968930545670843604", "Brandon Wee")

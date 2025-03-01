@@ -7,9 +7,13 @@ beautifulsoup4
 gunicorn
 langchain
 langchain-core
+langchain-community
 langchain-google-genai
 pydantic
 nltk
 scikit-learn
 pypdf2
 pandas
+langgraph
+faiss-cpu
+typing-extensions
