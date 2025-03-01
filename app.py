@@ -1,7 +1,7 @@
 from flask import Flask, request, jsonify, render_template
 from flask_cors import CORS
 from models import JobDetailsExtractLLM, ResumeSkillsSimilarity, change_username,CoverLetterLLM
-from skills_recommendation import get_skills_recommendation
+# from skills_recommendation import get_skills_recommendation
 
 app = Flask(__name__)
 CORS(app)
@@ -83,16 +83,16 @@ def generate_cover_letter():
         print("Error:", e)
         return jsonify({"success": False, "error": str(e)})
 
-@app.route('/get_skills_recommendation', methods=['POST', 'GET'])
-def get_skills_recommendation_route():
-    try:
-        contents = request.get_json()
-        job_occupation = contents['job_occupation']
-        resume_contents = contents['resume_contents']
+# @app.route('/get_skills_recommendation', methods=['POST', 'GET'])
+# def get_skills_recommendation_route():
+#     try:
+#         contents = request.get_json()
+#         job_occupation = contents['job_occupation']
+#         resume_contents = contents['resume_contents']
         
-        result, context = get_skills_recommendation(job_occupation, resume_contents)
-        return jsonify({"skills": result, "context": context})
+#         result, context = get_skills_recommendation(job_occupation, resume_contents)
+#         return jsonify({"skills": result, "context": context})
     
-    except Exception as e:
-        print("Error:", e)
-        return jsonify({"success": False, "error": str(e)})
+#     except Exception as e:
+#         print("Error:", e)
+#         return jsonify({"success": False, "error": str(e)})
