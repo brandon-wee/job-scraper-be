@@ -81,7 +81,7 @@ class JobDetailsExtractLLM:
                 .execute()
             
             if len(response.data) == 0:
-                return {"success": False, "error": "User does not exist."}
+                self.add_user(user_id)
 
             # Check if this job has already been saved by the user
             response = supabase.table("USER_JOB") \
