@@ -300,13 +300,13 @@ class CoverLetterLLM:
                 """You are an AI assistant that will be given a Job Listing and a Resume! 
                 You will be asked to generate a cover letter for the job listing using the resume as a reference. 
                 The cover letter should be personalized and tailored to the job requirements.
-                Make sure any of the user's skills or experiences that match the job listing are highlighted, but make sure it is from the resume and not from the job listing."""
+                Make sure any of the user's skills or experiences that match the job listing are highlighted, but make sure it is from the resume and not from the job listing.
+                Talk about the user's job experiences and how they can contribute to the company.
+                The cover letter should be in a professional format and should be well-structured.
+                Talk about the user's projects, achievements, and how they can be beneficial to the company."""
             )
         ]
-        self.message_template = """Follow this template to generate the cover letter:
-{template}
-        
-Here is the resume:
+        self.message_template = """Here is the resume:
 {resume}
 
 Here is the job listing:
@@ -318,10 +318,10 @@ And here is the company address:
     
     def generate_cover_letter(self, job_id, resume_bytes):
         resume_text = self.extract_text_from_pdf(resume_bytes)
-        with open("./templates/template.txt", "r") as file:
-            template = file.read()
-            job_contents, company_address = self.get_job_skills(job_id)
-            cover_letter = self.model.invoke(self.message + [("human", self.message_template.format(template=template, resume=resume_text, job_contents=job_contents, company_address=company_address))]).content
+        # with open("./templates/template.txt", "r") as file:
+        #     template = file.read()
+        job_contents, company_address = self.get_job_skills(job_id)
+        cover_letter = self.model.invoke(self.message + [("human", self.message_template.format(resume=resume_text, job_contents=job_contents, company_address=company_address))]).content
         
         print(cover_letter)
         return cover_letter
