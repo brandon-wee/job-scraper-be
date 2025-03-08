@@ -18,6 +18,9 @@ Here is the listing given to you in HTML format:
 
 **Instructions:**
 - Identify all technical, domain-specific, and soft skills mentioned in the resume.
+- Group similar skills together (e.g., React, Vue, Angular), and give them appropriate labels.
+- Make sure to include the proficiency level of each skill (if mentioned).
+- Avoid including irrelevant skills or information that is not a skill.
 - Output the skills as a structured JSON object.
 - Each skill must be accompanied by a **short description** explaining its relevance and proficiency level (if stated in the resume).
 - Avoid generic terms like "hardworking" or "team player" unless substantiated with context from the resume.
